@@ -1,20 +1,11 @@
 /*
-RTCによってある時刻から濁度を一定間隔で取得するプログラム
-setup関数{
-シリアル通信の開始→Helloの出力→コンパイルした時刻を取得しRTCモジュールに記憶
-→ArduinoとRTCモジュールの時間を同期→RTCモジュールのアラーム機能の初期化
-→アラーム機能の設定
-}
-loop関数{
-アラーム1(スタート時刻)の発火を確認したら，アラーム2(インターバル間隔)の設定
-→アラームの発火を確認したら濁度を読み取る
-→読み取った濁度をSDカードの指定されたtxtファイルに書き込む
-}
+スイッチを押すとアラーム機能が起動して，計測を始めるプログラム
 */
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 #include <DS3232RTC.h>
-#define pin_turb 7
+#define pin_turb 1
+#define pin_switch 7
 
 //諸変数の定義
 time_t t;//時刻のクラス(?)，構造体(?)
@@ -25,23 +16,18 @@ void serial_setting();//(1)
 void rtc_initial();//(2)
 time_t compileTime();//(3)
 void Average_Turbility(float *Average);//(4)
+void alarm_setting();//(5)
 
 void setup(){
   serial_setting();//(1)
   rtc_initial();//(2)
   //アラームを設定
-  RTC.setAlarm(ALM2_MATCH_MINUTES, 30, 41, 0, 0);//開始時刻の設定
-  RTC.alarm(ALARM_2);
   RTC.setAlarm(ALM1_EVERY_SECOND, 0, 0, 0, 0);//インターバル間隔の設定
+  attachInterrupt(digitalPinToInterrupt(pin_switch), alarm_setting, CHANGE);//(5)
 }
 
 void loop(){
-  if(RTC.alarm(ALARM_2)){
-    RTC.alarm(ALARM_1);//インターバルアラームをセット
-    RTC.alarmInterrupt(ALARM_2, false);//開始アラームを解除
-    Average_Turbility(&turb_ave);//(4)
-  }
-  else if(RTC.alarm(ALARM_1)){
+  if(RTC.alarm(ALARM_1)){
     Average_Turbility(&turb_ave);//(4)
   }
   delay(10);
@@ -98,7 +84,7 @@ time_t compileTime(){
     return t + FUDGE;        //add fudge factor to allow for compile time
 }
 
-//濁度をアナログ値で読み取って平均値を出力するプログラム　(4)
+//濁度をアナログ値で読み取って平均値を出力する関数　(4)
 void Average_Turbility(float *Average){
   *Average = 0.0;//出力する平均値の初期化
   int i, N = 10;//繰り返し数を定義
@@ -106,5 +92,12 @@ void Average_Turbility(float *Average){
     *Average += (float)analogRead(pin_turb);
   }
   *Average /= N;
-  Serial.println(*Average);
+  Serial.print(RTC.get());
+  Serial.print(": ");
+  Serial.println(*turb_ave);
+}
+
+//スイッチによる割り込みによってアラームをセットする関数　(5)
+void alarm_setting(){
+  RTC.alarm(1);//alarm1をセット
 }
